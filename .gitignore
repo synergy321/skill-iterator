@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Internal handoff / working notes — not for publication
+REBUILD-HANDOFF.md

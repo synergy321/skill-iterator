@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Plan Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --blue: #4a7fb5;
+      --blue-bg: #e8f0f8;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .meta {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .header-actions button {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-approve {
+      background: var(--green);
+      color: white;
+    }
+    .btn-approve:hover { background: #677a4f; }
+    .btn-export {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-export:hover { background: var(--accent-hover); }
+
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .summary-bar {
+      display: flex;
+      gap: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .summary-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .summary-stat .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .summary-stat .value {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .case-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .case-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .case-header h2 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .case-header .eval-id {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--bg);
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+    }
+    .case-body {
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .case-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .case-field .field-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-family: 'Poppins', sans-serif;
+    }
+    .case-field .field-value {
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .assertions-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .assertion-item {
+      padding: 0.6rem 0.8rem;
+      background: var(--bg);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+    }
+    .assertion-name {
+      font-weight: 500;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.8rem;
+    }
+    .assertion-criteria {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 0.2rem;
+    }
+    .assertion-grader {
+      font-size: 0.7rem;
+      color: var(--blue);
+      background: var(--blue-bg);
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      display: inline-block;
+      margin-left: 0.5rem;
+    }
+
+    .timing-badge {
+      display: inline-flex;
+      gap: 1rem;
+      padding: 0.4rem 0.8rem;
+      background: var(--green-bg);
+      border-radius: var(--radius);
+      font-size: 0.8rem;
+      color: var(--green);
+    }
+    .timing-badge .timing-item {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .status-banner {
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius);
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-align: center;
+    }
+    .status-approved {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+    .status-pending {
+      background: var(--blue-bg);
+      color: var(--blue);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Eval Plan Review</h1>
+      <div class="meta" id="headerMeta">Loading...</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-export" onclick="exportPlan()">Export JSON</button>
+      <button class="btn-approve" onclick="approvePlan()">Approve Plan</button>
+    </div>
+  </div>
+
+  <div class="main" id="content">
+    <div class="status-banner status-pending" id="statusBanner">Loading plan data...</div>
+  </div>
+
+  <script>
+    const DATA = __PLAN_DATA_PLACEHOLDER__;
+
+    function init() {
+      if (DATA.error) {
+        document.getElementById('statusBanner').textContent = `Error: ${DATA.error}`;
+        return;
+      }
+
+      const plan = DATA.plan;
+      const cases = plan.cases || [];
+      const iteration = DATA.iteration || plan.iteration || 1;
+
+      // Header meta
+      document.getElementById('headerMeta').textContent =
+        `Iteration ${iteration} · ${cases.length} eval cases · Status: ${plan.status || 'draft'}`;
+
+      // Build content
+      const content = document.getElementById('content');
+      content.innerHTML = '';
+
+      // Status banner
+      const banner = document.createElement('div');
+      banner.className = `status-banner ${plan.status === 'approved' ? 'status-approved' : 'status-pending'}`;
+      banner.id = 'statusBanner';
+      banner.textContent = plan.status === 'approved'
+        ? 'Plan approved — ready to run'
+        : 'Plan pending review — approve when ready';
+      content.appendChild(banner);
+
+      // Summary bar
+      const totalRuns = cases.reduce((sum, c) => sum + (c.runs_per_configuration || 3) * 2, 0);
+      const totalAssertions = cases.reduce((sum, c) => sum + (c.assertions || []).length, 0);
+      let estTokens = null;
+      let estTime = null;
+      if (DATA.has_previous_timing) {
+        const tokenEstimates = cases.filter(c => c._prev_timing?.avg_tokens).map(c => c._prev_timing.avg_tokens);
+        const timeEstimates = cases.filter(c => c._prev_timing?.avg_duration_seconds).map(c => c._prev_timing.avg_duration_seconds);
+        if (tokenEstimates.length > 0) {
+          estTokens = Math.round(tokenEstimates.reduce((a, b) => a + b, 0) / tokenEstimates.length * totalRuns);
+          estTime = Math.round(timeEstimates.reduce((a, b) => a + b, 0) / timeEstimates.length * totalRuns);
+        }
+      }
+
+      const summaryHtml = `
+        <div class="summary-bar">
+          <div class="summary-stat"><span class="label">Cases</span><span class="value">${cases.length}</span></div>
+          <div class="summary-stat"><span class="label">Total Runs</span><span class="value">${totalRuns}</span></div>
+          <div class="summary-stat"><span class="label">Assertions</span><span class="value">${totalAssertions}</span></div>
+          ${estTokens ? `<div class="summary-stat"><span class="label">Est. Tokens</span><span class="value">${(estTokens/1000).toFixed(0)}k</span></div>` : ''}
+          ${estTime ? `<div class="summary-stat"><span class="label">Est. Time</span><span class="value">${Math.round(estTime/60)}min</span></div>` : ''}
+        </div>
+      `;
+      content.insertAdjacentHTML('beforeend', summaryHtml);
+
+      // Case cards
+      cases.forEach(c => {
+        const assertions = c.assertions || [];
+        const prevTiming = c._prev_timing;
+
+        let timingHtml = '';
+        if (prevTiming && (prevTiming.avg_tokens || prevTiming.avg_duration_seconds)) {
+          timingHtml = `
+            <div class="timing-badge">
+              ${prevTiming.avg_tokens ? `<span class="timing-item">&#x1f4b0; ~${(prevTiming.avg_tokens/1000).toFixed(0)}k tokens/run</span>` : ''}
+              ${prevTiming.avg_duration_seconds ? `<span class="timing-item">&#x23f1; ~${Math.round(prevTiming.avg_duration_seconds)}s/run</span>` : ''}
+              <span class="timing-item">(${prevTiming.run_count} prev runs)</span>
+            </div>
+          `;
+        }
+
+        const assertionsHtml = assertions.map(a => `
+          <li class="assertion-item">
+            <span class="assertion-name">${escapeHtml(a.name)}</span>
+            ${a.grader ? `<span class="assertion-grader">${escapeHtml(a.grader)}</span>` : ''}
+            <div class="assertion-criteria">${escapeHtml(a.criteria)}</div>
+          </li>
+        `).join('');
+
+        const cardHtml = `
+          <div class="case-card">
+            <div class="case-header">
+              <h2>${escapeHtml(c.name || 'Unnamed')}</h2>
+              <span class="eval-id">eval-${c.eval_id} · ${c.runs_per_configuration || 3} runs/config</span>
+            </div>
+            <div class="case-body">
+              <div class="case-field">
+                <span class="field-label">Prompt</span>
+                <span class="field-value">${escapeHtml(c.prompt || '')}</span>
+              </div>
+              <div class="case-field">
+                <span class="field-label">Expected Output</span>
+                <span class="field-value">${escapeHtml(c.expected_output || '')}</span>
+              </div>
+              ${timingHtml ? `<div class="case-field"><span class="field-label">Previous Iteration Timing</span>${timingHtml}</div>` : ''}
+              <div class="case-field">
+                <span class="field-label">Assertions (${assertions.length})</span>
+                <ul class="assertions-list">${assertionsHtml || '<li class="assertion-item" style="color:var(--text-muted)">No assertions defined</li>'}</ul>
+              </div>
+            </div>
+          </div>
+        `;
+        content.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function exportPlan() {
+      const plan = DATA.plan;
+      const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `eval_plan_iteration-${DATA.iteration || 1}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function approvePlan() {
+      const plan = DATA.plan;
+      plan.status = 'approved';
+
+      try {
+        const resp = await fetch('/save-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(plan),
+        });
+        if (resp.ok) {
+          const banner = document.getElementById('statusBanner');
+          banner.className = 'status-banner status-approved';
+          banner.textContent = 'Plan approved — ready to run';
+          DATA.plan.status = 'approved';
+        } else {
+          alert('Failed to save plan. The file may be read-only.');
+        }
+      } catch (e) {
+        // Static mode — just download
+        exportPlan();
+        alert('Plan exported as JSON (static mode — save manually).');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

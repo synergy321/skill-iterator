@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -E 'SKILL\\.md$' | while read f; do dir=$(dirname \"$f\"); python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quick_validate.py \"$dir\" || exit 1; done"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -E '(eval_plan|feedback|suggestions)\\.json$' | while read f; do python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quick_validate.py \"$f\" || exit 1; done"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "_comment": "Hooks 范本 — Phase 1 实施时改名为 hooks.json 并测试。${CLAUDE_PLUGIN_ROOT} 在 plugin install 后自动展开为 plugin 根目录。",
+  "_note": "matcher 字段是 regex 匹配 tool name。command 是 shell 命令，stdin 接收 tool input JSON。具体 spec 见 plugin-dev:hook-development skill。",
+
+  "hooks": {
+
+    "PostToolUse": [
+      {
+        "_purpose": "Hook 1 · SKILL.md 改完自动跑 lint （三层强制第 1 层）",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -E 'SKILL\\.md$' | while read f; do dir=$(dirname \"$f\"); python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quick_validate.py \"$dir\" || exit 1; done",
+            "_explain": "从 hook stdin 拿 file_path → 如果是 SKILL.md → 对其所在目录跑 quick_validate.py。失败 exit 1 让违规进 AI context。"
+          }
+        ]
+      },
+      {
+        "_purpose": "Hook 2 · workspace artifact 改完守门",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -E '(eval_plan|feedback|suggestions)\\.json$' | while read f; do python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quick_validate.py \"$f\" || exit 1; done",
+            "_explain": "命中 eval-plan.json / feedback.json / suggestions.json → 调 quick_validate.py 的 workspace 验证模式（schema check）。"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "_purpose": "Hook 3 · iterate 跑一半没收尾时提醒",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "find . -type d -path '*/evals/workspace/iteration-*' 2>/dev/null | while read dir; do if [ -f \"$dir/eval_plan.json\" ] && [ ! -f \"$dir/suggestions.json\" ]; then echo \"⚠ iteration 未收尾: $dir 缺 suggestions.json\" >&2; fi; done",
+            "_explain": "Stop 触发时扫 cwd 下的 iteration 目录，缺 suggestions.json 视为未收尾，stderr 输出提示，进 AI 下次 context。"
+          }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "_purpose": "Hook 4 · 列 in-progress iteration（可选，可保留 _disabled 前缀禁用）",
+        "_disabled": true,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "find ~/.claude/skills -type d -path '*/evals/workspace/iteration-*' 2>/dev/null | head -20 | while read dir; do if [ -f \"$dir/eval_plan.json\" ] && [ ! -f \"$dir/suggestions.json\" ]; then echo \"📋 上次未完: ${dir#$HOME/.claude/skills/}\"; fi; done",
+            "_explain": "SessionStart 时全局扫所有 skill 的 workspace，列出未收尾 iteration。开关：删 _disabled 字段即启用。"
+          }
+        ]
+      }
+    ]
+  }
+}

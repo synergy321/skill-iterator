@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "skill-iterator-plugin",
+  "description": "Local dev marketplace for the skill-iterator plugin (eval + iterate Claude skills).",
+  "owner": {
+    "name": "Travis Chong"
+  },
+  "plugins": [
+    {
+      "name": "skill-iterator",
+      "description": "Eval and iterate Claude skills · 4-flow split (umbrella router + iterate / trigger-tune / blind-test) · L1/L2/L3 scoring · read-only on target · skill-creator contract.",
+      "source": "./skill-iterator",
+      "category": "development"
+    }
+  ]
+}
