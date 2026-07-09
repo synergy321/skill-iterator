@@ -95,7 +95,12 @@ suggestions.json、benchmark.json。本步是可选补充：
    建测试脚本 ≠ 改功能代码，不违反只读原则；[llm] 类型的条目不进 checks.sh，留给 L3 grader 评）。
    ⚠️ workflow 只解决「串联靠人」的问题，不解决 L1/L2 对产文件型 skill 评不到的问题——这条要单独做。
 
-2. （可选）A/B 对比：如果有两个版本的 skill（改前 vs 改后），spawn `../../agents/comparator.md` 做 blind 对比。
+2. **版本对版本盲评（version-compare，Step 3 workflow 自动跑）**：iteration ≥ 2、上一轮目录存在、且 case 的 prompt 与上一轮完全一致时，workflow 在 finalize 前自动把本轮和上一轮的 with_skill 产物匿名配对（A/B 座位按 run 奇偶交替），spawn `../../agents/comparator.md` 逐对盲评，汇总写 `iteration-N/version-compare.json`（schema 见 `../../references/schemas.md` §14）。
+   - 为什么：L3 绝对分有打分噪音，两轮差 0.1 分分不清真假进退；匿名头对头更灵敏，还能抓"总分涨了但个别 case 退步"。
+   - 怎么关：Workflow args 加 `versionCompare: false`（题目大改、或想省 token 时）。
+   - 成本：每对约一次 grader 的量级；prompt 改过的 case 自动跳过（列在 `skipped_cases`）。
+   - Step 5 汇报时把 tally（赢/平/输）+ verdict + 每对判词要点讲给用户；viewer 暂无此 tab（backlog）。
+   - 手动 A/B（改前 vs 改后不隔一轮 iteration 时）仍可直接 spawn comparator，输出格式同 schemas.md §6。
 
 3. **如果目标 skill 是产出文件型** → 推荐叠加跑 [blind-test skill](../../blind-test/SKILL.md)。
    L1/L2/L3 测 "产出符不符合规范"，blind test 测 "产出能不能 work"——后者是产出文件型 skill 的 reason for being。

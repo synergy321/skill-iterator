@@ -81,6 +81,9 @@ iterate-skill/
 
 8. **每轮跑完，有重要发现就更新 Decision Log**：架构变更、eval 标准调整、意外发现，记进 `../../decision.md`（plugin 层不强制，target skill 层强烈推荐）。
 
+9. **版本对版本盲评自动叠加（version-compare）**：iteration ≥ 2 且题目与上一轮一致时，Step 3 的 workflow 自动把本轮 with_skill 产出与上一轮做匿名头对头盲评（comparator），产出 `version-compare.json`；Workflow args 传 `versionCompare: false` 可关。
+   为什么：L3 绝对分噪音大，两轮差 0.1 分分不清是真进步还是打分波动；头对头盲评对小幅进退更灵敏，还能抓到"总分涨了但个别 case 退步"。
+
 ## 完成标准（怎么算做对了）
 
 - [ ] eval plan 已确认并执行
