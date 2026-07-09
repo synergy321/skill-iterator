@@ -1,6 +1,6 @@
 {
   "name": "skill-iterator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Eval and iterate Claude skills · 4-flow split (umbrella router + iterate / trigger-tune / blind-test) · L1/L2/L3 scoring · read-only on target · skill-creator contract.",
   "author": {
     "name": "Travis Chong",
