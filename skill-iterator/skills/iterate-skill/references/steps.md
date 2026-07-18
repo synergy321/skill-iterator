@@ -58,6 +58,13 @@ Workflow({
 
 （pluginDir = 本 plugin 根目录；skillPath = 目标 skill 目录）
 
+**跑前检查——baseline 复用（P1，省 ~27%/轮）**：without_skill 的跑分跟 skill 版本无关，prompt 没变就不该重测（测量精度花在变量上，不花在常量上；副作用是好的：baseline 冻结后，轮与轮的 delta 只剩 skill 一个变量）。调 Workflow 前做两个检查，**全部满足**才在 args 加 `skipBaselineExec: true`：
+
+1. 本轮每个 case 的 prompt 与上一轮 eval-plan.json 里同 id case 的 prompt **逐字一致**（diff 或 md5 比对，不要目测）
+2. 上一轮 `results/<case>/without_skill/` 存在且有产物（transcript + grading-l3.json）
+
+任一不满足 → 不传这个参数，行为回到全量双跑（安全阀：prompt 一变机制自动失效）。开启后 Setup 节点会把上一轮 baseline 的 results+grading 拷进本轮（留 `.baseline-reused` 标记），executor/grader 只跑 with_skill，下游 suggest/benchmark/version-compare 照常工作。Step 5 汇报时明确告诉用户「本轮 baseline 复用自 iteration-N-1」。
+
 workflow 内部确定性 DAG：
 
 ```

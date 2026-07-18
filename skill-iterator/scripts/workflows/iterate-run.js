@@ -3,7 +3,8 @@
 // 由 iterate-skill 的 steps.md Step 3 调用。orchestrator 读完 eval-plan.json 后：
 //   Workflow({
 //     scriptPath: "<pluginDir>/scripts/workflows/iterate-run.js",
-//     args: { skillPath, skillName, iteration, pluginDir, cases: [{id, prompt}, ...] }
+//     args: { skillPath, skillName, iteration, pluginDir, cases: [{id, prompt}, ...],
+//             skipBaselineExec?: true }   // P1：prompt 与上一轮完全一致时复用 baseline，不重跑 without_skill
 //   })
 //
 // 设计目标 = 100% 可跑通 / 可重入（guardrail，不靠 orchestrator 记得）：
@@ -35,9 +36,15 @@ let _a = args
 if (typeof _a === 'string') {
   try { _a = JSON.parse(_a) } catch (e) { throw new Error('iterate-run: args 是字符串但非合法 JSON — ' + e.message) }
 }
-const { skillPath, skillName, iteration, pluginDir, cases, runs, execModel, versionCompare } = _a || {}
+const { skillPath, skillName, iteration, pluginDir, cases, runs, execModel, versionCompare, skipBaselineExec } = _a || {}
 if (!skillPath || !iteration || !pluginDir || !Array.isArray(cases) || cases.length === 0) {
   throw new Error('iterate-run 需要 args: { skillPath, skillName, iteration, pluginDir, cases:[{id,prompt}], runs? }（收到 args 类型=' + typeof args + '）')
+}
+// P1 baseline 复用：without_skill 跟 skill 版本无关，prompt 没变就不该重测（测量精度花在变量上，不花在常量上）。
+// 只有 orchestrator 核对过「本轮 case prompt 与上一轮逐字一致 + 上一轮 without_skill 产物存在」才允许传 true。
+const SKIP_BASELINE = skipBaselineExec === true
+if (SKIP_BASELINE && !(Number(iteration) > 1)) {
+  throw new Error('skipBaselineExec 需要 iteration > 1（第一轮没有可复用的 baseline）')
 }
 
 const ITER = `${skillPath}/evals/workspace/iteration-${iteration}`
@@ -45,6 +52,9 @@ const SCRIPTS = `${pluginDir}/scripts`
 const AGENTS = `${pluginDir}/agents`
 const CRITERIA = `${skillPath}/evals/eval-criteria.md`
 const CONFIGS = ['with_skill', 'without_skill']
+// SKIP_BASELINE 时执行/评分链只跑 with_skill；CONFIGS 本身不动——目录布局、下游 aggregate/benchmark 仍按双配置读
+// （baseline 的 results+grading 由 Setup 节点从上一轮拷贝进来，产物集合和全量跑完全一致）
+const EXEC_CONFIGS = SKIP_BASELINE ? ['with_skill'] : CONFIGS
 const RUNS = Number.isInteger(runs) && runs > 0 ? runs : 1   // 每配置跑几次；>1 时下游 aggregate/benchmark 取中位数平掉单跑噪声
 const A = 'general-purpose'
 const M = 'sonnet'
@@ -275,15 +285,37 @@ print(json.dumps({"tally": tally, "verdict": verdict, "pairs_judged": len([p for
 
 // ---------- 确定性 DAG ----------
 phase('Setup')
+const baselineCopyBlock = SKIP_BASELINE ? `
+然后（P1 baseline 复用）用 Bash 把下面的 python 脚本【原样】以 heredoc 执行（python3 <<'PYEOF' … PYEOF），一行都不要增删改，并把它打印的 JSON 原样附在汇报里。
+它幂等（有 .baseline-reused 标记就跳过）、只写 ${ITER}/results/ 下的 without_skill 目录，绝不碰 skill 文件和上一轮目录：
+
+import json, shutil
+from pathlib import Path
+CUR = Path("${ITER}")
+PREV = Path("${PREV_ITER}")
+copied, missing = [], []
+for cid in ${JSON.stringify(cases.map(c => c.id))}:
+    src = PREV / "results" / cid / "without_skill"
+    dst = CUR / "results" / cid / "without_skill"
+    if not src.exists():
+        missing.append(cid); continue
+    marker = dst / ".baseline-reused"
+    if marker.exists():
+        copied.append(cid + " (already)"); continue
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+    marker.write_text(json.dumps({"reused_from": str(src)}, ensure_ascii=False))
+    copied.append(cid)
+print(json.dumps({"baseline_copied": copied, "baseline_missing": missing}, ensure_ascii=False))
+` : ''
 await agent(
-  `跑 setup：python3 ${SCRIPTS}/run_iteration.py setup ${ITER}（读 eval-plan.json 建 results/ 目录）。纯文字汇报建了哪些 run 目录、有无报错。`,
+  `跑 setup：python3 ${SCRIPTS}/run_iteration.py setup ${ITER}（读 eval-plan.json 建 results/ 目录）。${baselineCopyBlock}纯文字汇报建了哪些 run 目录、有无报错${SKIP_BASELINE ? '、baseline 拷贝结果（missing 非空必须原文写出）' : ''}。`,
   { label: 'setup', phase: 'Setup', agentType: A, model: M }
 )
-log('setup done')
+log(SKIP_BASELINE ? 'setup done（baseline 复用自 iteration-' + (iteration - 1) + '，without_skill 不重跑）' : 'setup done')
 
 phase('Execute')
 const execTasks = []
-for (const c of cases) for (const cfg of CONFIGS) for (let r = 1; r <= RUNS; r++) {
+for (const c of cases) for (const cfg of EXEC_CONFIGS) for (let r = 1; r <= RUNS; r++) {
   const lbl = RUNS > 1 ? `exec:${c.id}:${cfg}:run${r}` : `exec:${c.id}:${cfg}`
   execTasks.push(() => agent(executorPrompt(c, cfg, r), { label: lbl, phase: 'Execute', agentType: A, model: EXEC_M }))
 }
@@ -299,7 +331,7 @@ log('grade L1/L2 done')
 
 phase('GradeL3')
 const gradeTasks = []
-for (const c of cases) for (const cfg of CONFIGS) for (let r = 1; r <= RUNS; r++) {
+for (const c of cases) for (const cfg of EXEC_CONFIGS) for (let r = 1; r <= RUNS; r++) {
   const lbl = RUNS > 1 ? `grade-l3:${c.id}:${cfg}:run${r}` : `grade-l3:${c.id}:${cfg}`
   gradeTasks.push(() => agent(graderPrompt(c, cfg, r), { label: lbl, phase: 'GradeL3', agentType: A, model: M }))
 }
@@ -340,6 +372,7 @@ const final = await agent(
 )
 
 return {
+  baseline: SKIP_BASELINE ? `reused from iteration-${iteration - 1}（without_skill 未重跑）` : 'executed',
   executors_ok: execs.filter(Boolean).length,
   executors_total: execTasks.length,
   graders_ok: grades.filter(Boolean).length,
